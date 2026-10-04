@@ -14,7 +14,7 @@ Full write-up: [README.md](README.md)
 8. [Inbound vs outbound rules](#8-inbound-vs-outbound-rules)
 9. [Network ACLs](#9-network-acls)
 10. [Security groups vs network ACLs](#10-security-groups-vs-network-acls)
-11. [The big picture](#11-the-big-picture)
+11. [The big picture: a request's journey](#11-the-big-picture-a-requests-journey-️)
 12. [Quick self-quiz](#quick-self-quiz)
 
 ---
@@ -268,25 +268,50 @@ It's a security best practice called **layered security**:
 
 ---
 
-## 11. The big picture
+## 11. The big picture: a request's journey 🗺️
+
+What happens when someone visits a website hosted on my EC2 instance:
 
 ```
-Internet
-   │
-Internet Gateway (IGW)          ← door between the VPC and the internet
-   │
-Route Table                     ← GPS: "where does this traffic go?"
-   │
-Network ACL (subnet level)      ← traffic cops at the subnet border (stateless)
-   │
-Subnet
-   │
-Security Group (resource level) ← guard at each resource's door (stateful)
-   │
-EC2 instance / resource
+ 💻 User's browser
+      │  ⬇️ request            ⬆️ response
+ 🚪 Internet Gateway   (NextWork IG)
+      │
+ 🌐 VPC                (NextWork VPC)
+      │
+ 🚏 Route Table        (NextWork route table)   → local route
+      │
+ 📋 Network ACL        (Rule 100: allow all from 0.0.0.0/0)
+      │
+ 🥅 Public Subnet      (Public 1)
+      │
+ 👮 Security Group     (NextWork Security Group: allow HTTP port 80 from 0.0.0.0/0)
+      │
+ 🖥️ EC2 Instance       (web server builds the response)
 ```
 
-Traffic from the internet passes through **every** layer. If any one of them blocks it, the traffic doesn't get through.
+### Step by step ⬇️ (the request going in)
+| # | Stop | What happens |
+|---|---|---|
+| 1 | 💻 **Client/User** | The user types the website URL into their browser and presses Enter |
+| 2 | 🚪 **Internet Gateway** | The request travels over the internet and reaches **NextWork IG** |
+| 3 | 🌐 **VPC** | The IGW forwards the request into the VPC it's attached to, **NextWork VPC** |
+| 4 | 🚏 **Route Table** | The public subnet's route table directs the request toward the EC2 instance using the **local** route |
+| 5 | 📋 **Network ACL** | The request is checked at the subnet border. **Inbound Rule 100** allows traffic from anywhere (`0.0.0.0/0`), so it passes ✅ |
+| 6 | 🥅 **Public Subnet** | The request enters **Public 1** and heads to the EC2 instance |
+| 7 | 👮 **Security Group** | **NextWork Security Group** has an inbound rule allowing **HTTP (port 80)** from `0.0.0.0/0`, so it passes ✅ |
+| 8 | 🖥️ **EC2 Instance** | The web server processes the request and prepares the response |
+
+### The trip back ⬆️ (the response going out)
+| # | What happens |
+|---|---|
+| 9 | The website content travels back the **same way in reverse**: Security Group → Public Subnet → Network ACL → Route Table (the `0.0.0.0/0 → IGW` route this time, since the user is out on the internet) → VPC → Internet Gateway → the user's browser 🎉 |
+
+> 🧠 **Stateful vs stateless on the way back:**
+> - **Security group:** the response is let out **automatically** because it's stateful.
+> - **Network ACL:** the response needs an **outbound rule** that allows it because it's stateless. In the default NACL, **Outbound Rule 100** allows all.
+
+**If any stop blocks the traffic, the website won't load.** When troubleshooting, walk through each stop in this order.
 
 ---
 
@@ -318,6 +343,8 @@ Traffic from the internet passes through **every** layer. If any one of them blo
 24. Why use both NACLs and security groups? <br>→ Layered security: broad rules at the subnet level plus specific rules at the resource level
 25. Which protocol is used for: web pages? Email? Big file transfers? Secure server access? <br>→ HTTP / SMTP / FTP / SSH
 26. Ports for FTP, SSH, SMTP, HTTP, HTTPS? <br>→ 21 / 22 / 25 / 80 / 443
+27. Name the stops a website request passes through, in order. <br>→ User → Internet Gateway → VPC → Route Table → Network ACL → Public Subnet → Security Group → EC2 instance
+28. On the way back, which layer lets the response out automatically, and which needs an outbound rule? <br>→ The security group is automatic (stateful). The network ACL needs an outbound rule (stateless).
 
 ---
 
