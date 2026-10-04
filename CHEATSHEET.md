@@ -3,31 +3,53 @@
 Quick review notes for the NextWork **VPC Traffic Flow and Security** project.
 Full write-up: [README.md](README.md)
 
+**Contents**
+1. [What is a VPC?](#1-what-is-a-vpc)
+2. [IPv4 CIDR blocks](#2-ipv4-cidr-blocks)
+3. [Subnets & auto-assign public IPv4](#3-subnets--auto-assign-public-ipv4)
+4. [Internet gateways](#4-internet-gateways)
+5. [Route tables](#5-route-tables)
+6. [Security groups](#6-security-groups)
+7. [Protocols & port numbers](#7-protocols--port-numbers)
+8. [Inbound vs outbound rules](#8-inbound-vs-outbound-rules)
+9. [Network ACLs](#9-network-acls)
+10. [Security groups vs network ACLs](#10-security-groups-vs-network-acls)
+11. [The big picture](#11-the-big-picture)
+12. [Quick self-quiz](#quick-self-quiz)
+
 ---
 
-## 0. What is a VPC?
+## The city analogy 🏙️ (used throughout this project)
 
-- AWS puts every resource you create into a **Region**. You can see your current Region in the **top-right corner** of the AWS Console.
-  - Exception: **global resources** like IAM users and roles don't belong to a Region.
-- A **VPC (Virtual Private Cloud)** is your own private, isolated network inside a Region.
-
-### The city analogy 🏙️
 | AWS | Analogy |
 |---|---|
 | **Region** | A country |
 | **VPC** | Your own city inside that country |
-| **Subnets** | Neighborhoods in your city |
-| **Route tables / security** | Traffic rules and security measures |
-| **EC2 instances, S3 buckets, etc.** | The buildings and things in your city |
+| **CIDR block** | A zone or area of the city |
+| **IP address** | A street address |
+| **Subnet** | A neighborhood |
+| **Resource (EC2, etc.)** | A building |
+| **Route table** | A GPS |
+| **Network ACL** | Traffic cops at the neighborhood's entry and exit points |
+| **Security group** | A security guard at each building's entrance |
+| **Protocols** | Vehicles (buses, trucks, mail carriers) carrying data |
+| **Port numbers** | Doors on a building |
 | **Other AWS accounts' VPCs** | Other cities, fully isolated from yours |
-
-**Key idea:** your VPC is isolated from everyone else's, so you have full privacy and control over its layout and rules.
 
 ---
 
-## 0.5. What is an IPv4 CIDR?
+## 1. What is a VPC?
 
-- **IP address** = a street address for a resource in your city 🏠
+- AWS puts every resource you create into a **Region**. You can see your current Region in the **top-right corner** of the AWS Console.
+  - Exception: **global resources** like IAM users and roles don't belong to a Region.
+- A **VPC (Virtual Private Cloud)** is your own private, isolated network inside a Region. You design its neighborhoods (subnets), traffic rules, and security.
+- **Key idea:** your VPC is isolated from everyone else's, so you have full privacy and control over its layout and rules.
+
+---
+
+## 2. IPv4 CIDR blocks
+
+- **IP address** = a street address for a resource 🏠
 - **CIDR block** = a whole block of IP addresses, like marking out a zone in your city 🗺️
 
 ### How to read a CIDR block
@@ -56,48 +78,68 @@ Example: `/24` → 2^(32 − 24) = 2^8 = 256
 
 ---
 
-## The big picture
+## 3. Subnets & auto-assign public IPv4
 
-```
-Internet
-   │
-Internet Gateway (IGW)         ← door between the VPC and the internet
-   │
-Route Table                    ← GPS: "where does this traffic go?"
-   │
-Network ACL (subnet level)     ← guard at the subnet gate (stateless)
-   │
-Subnet
-   │
-Security Group (resource level) ← guard at each resource's door (stateful)
-   │
-EC2 instance / resource
-```
-
-Traffic coming from the internet passes through **every** layer. If any one of them blocks it, the traffic doesn't get through.
+- **Subnet** = a neighborhood inside your VPC, with its own smaller CIDR block.
+- **Auto-assign public IPv4 address** (a subnet setting):
+  - Any EC2 instance launched in that subnet **automatically gets a public IP address**.
+  - This makes the instance reachable from the internet without assigning an IP by hand, which saves a lot of time.
 
 ---
 
-## 1. Route tables
+## 4. Internet gateways
 
-| Term | Meaning |
+- **Attaching an internet gateway (IGW) to a VPC** means resources in the VPC can now access the internet.
+- EC2 instances **with public IPs** become reachable by users, so any app you host on them becomes public too.
+
+> ⚠️ Attaching the IGW alone isn't enough. The subnet's **route table** also needs a route to it (see section 5).
+
+### For an EC2 instance to be reachable from the internet, you need ALL of these:
+1. ✅ An internet gateway **attached** to the VPC
+2. ✅ A route `0.0.0.0/0 → igw-xxxx` in the subnet's **route table**
+3. ✅ A **public IP** on the instance (e.g. from auto-assign public IPv4)
+4. ✅ A **network ACL** that allows the traffic
+5. ✅ A **security group** that allows the traffic (e.g. HTTP on port 80)
+
+---
+
+## 5. Route tables
+
+- **Route table** = a **GPS** 🧭 for the resources in your subnet. It's a table of rules (called **routes**) that decide where network traffic goes.
+- **Every subnet must be linked to a route table.** It tells the subnet's traffic where to go to send and receive data.
+  - Example: a web server (EC2) hosting a website needs a route table that knows how to direct traffic to and from it.
+
+### Destination vs target
+| Column | Meaning | Analogy |
+|---|---|---|
+| **Destination** | The IP address range the traffic wants to reach | Where you want to go |
+| **Target** | The path the traffic takes to get there | The road you take |
+
+### Common targets
+| Target | Meaning |
 |---|---|
-| **Route table** | A set of rules (routes) that decides where traffic from a subnet goes |
-| **Destination** | Where the traffic wants to go (an IP range) |
-| **Target** | The path or gateway it takes to get there |
-| **Local route** | Added automatically, e.g. `10.0.0.0/16 → local`, so resources inside the VPC can talk to each other |
+| `local` | Traffic **stays inside the VPC**, so resources can talk to each other |
+| `igw-xxxxxx` | Traffic goes **to the internet** through the internet gateway |
 
-**Every subnet must be associated with a route table.**
+### My route table
+| Destination | Target | What it does |
+|---|---|---|
+| `10.0.0.0/16` | `local` | Traffic for anything inside my VPC stays inside (added automatically) |
+| `0.0.0.0/0` | `igw-xxxx` (NextWork IG) | Everything else goes to the internet |
 
-### What makes a subnet public
-A subnet is **public** when its route table has this route:
+### Why `0.0.0.0/0`?
+- `0.0.0.0/0` = **all IPv4 addresses**.
+- It creates a **default route**: any traffic that doesn't match a more specific route goes here.
+- In my table, any traffic **not** bound for `10.0.0.0/16` (my VPC) is sent to the internet gateway, which forwards it to the internet.
 
-| Destination | Target |
-|---|---|
-| `0.0.0.0/0` | `igw-xxxxxxxx` (Internet Gateway) |
+### 🧠 Extra for experts: which route wins?
+Routes are checked from **most specific** (bigger number after the slash) to **least specific** (`/0`).
+- Destination is inside `10.0.0.0/16`? → `local` (stays in the VPC)
+- Otherwise → `0.0.0.0/0` (internet gateway)
 
-- `0.0.0.0/0` means "all IPv4 addresses", i.e. anywhere on the internet.
-- Without this route, the subnet is private, even if an IGW is attached to the VPC.
+### Internet gateway + route table = public subnet
+> A subnet becomes **public** when its route table has a route that sends internet-bound traffic (`0.0.0.0/0`) to an **internet gateway**.
+> Without that route, the subnet is private, even if an IGW is attached to the VPC.
 
 ### Steps I did
 1. Created a custom route table in my VPC
@@ -106,18 +148,22 @@ A subnet is **public** when its route table has this route:
 
 ---
 
-## 2. Security groups (SG)
+## 6. Security groups
 
-- A virtual firewall attached to **individual resources** (EC2, RDS, and so on)
-- **Stateful:** if a request is allowed in, the response is automatically allowed out (and the same in reverse)
+- **Security group (SG)** = a **security guard** 💂 at the entrance of each **building** (resource).
+- SGs attach to **individual resources**, **not** to a VPC or subnet.
+- **Every resource must have a security group.** If you don't pick one, AWS uses the **default security group** it created with your VPC.
+- SGs check what comes in and out, based on **IP address, protocol and port number**.
+- **Stateful:** if a request is allowed in, the response is automatically allowed out (and the same in reverse).
 - **Allow rules only.** You can't write a "deny" rule.
-- Each rule = **protocol** + **port range** + **source/destination IP**
 
 ### Default behavior of a new SG
 | Direction | Default |
 |---|---|
 | Inbound | ❌ Deny all (until you add rules) |
-| Outbound | ✅ Allow all |
+| Outbound | ✅ **Allow all**: resources can send data to any IP, whether in your VPC, in other VPCs (with permissions), or on the internet |
+
+> 💡 That's why I only had to create an **inbound** rule. Outbound was already open.
 
 ### The rule I added
 | Type | Protocol | Port | Source |
@@ -126,23 +172,68 @@ A subnet is **public** when its route table has this route:
 
 This lets anyone on the internet visit a web server in the subnet.
 
-### Common ports to remember
+---
+
+## 7. Protocols & port numbers
+
+### Protocols = vehicles 🚌
+Protocols are rules for how data moves across the internet. Each one is built for a specific kind of task.
+
+| Protocol | Full name | What it does | Analogy |
+|---|---|---|---|
+| **HTTP** | Hypertext Transfer Protocol | Sends web pages to your browser | 🚌 A bus carrying passengers |
+| **SMTP** | Simple Mail Transfer Protocol | Sends emails | 📬 A mail carrier |
+| **FTP** | File Transfer Protocol | Moves large files between computers (e.g. uploading website files to a server) | 🚚 A delivery truck |
+| **SSH** | Secure Shell | Encrypted, private access to manage a server (e.g. EC2) | 🚗 A secure private car |
+
+### Port numbers = doors 🚪
+- Each port is a "door" on a server for a specific protocol.
+- Ports tell the server **which application** should handle incoming data. Without them, an EC2 instance wouldn't know where to send each piece of data.
+
 | Port | Protocol |
 |---|---|
-| 22 | SSH |
-| 80 | HTTP |
-| 443 | HTTPS |
-| 3389 | RDP (Windows remote desktop) |
+| **21** | FTP |
+| **22** | SSH |
+| **25** | SMTP |
+| **80** | HTTP |
+| **443** | HTTPS (secure HTTP) |
+| **3389** | RDP (Windows remote desktop) |
 
 ---
 
-## 3. Network ACLs (NACL)
+## 8. Inbound vs outbound rules
 
-- A virtual firewall for the **whole subnet**
-- **Stateless:** return traffic is NOT automatically allowed, so you must write both inbound AND outbound rules
-- Supports **Allow AND Deny** rules
+| | Inbound ⬇️ | Outbound ⬆️ |
+|---|---|---|
+| Controls | Data **entering** your resources | Data your resources **send out** |
+| Examples | Visitors to your website, form submissions | Your server requesting data from another service, your app sending an email notification |
+| Why it matters | Lets users access your public website | Manages how your server talks to the rest of the internet |
+
+---
+
+## 9. Network ACLs
+
+- **Network ACL (NACL)** = **traffic cops** 👮 at every entry and exit point of your **subnet**. They check each data packet against a table of rules before letting it through.
+- **Stateless:** return traffic is NOT automatically allowed, so you must write both inbound AND outbound rules.
+- Supports **Allow AND Deny** rules.
 - Rules are checked **in numbered order (lowest first)**. The first match wins.
-- Every NACL ends with a `*` rule that denies anything not matched.
+
+### What's a data packet? 📦
+- "Traffic" is really **data packets**.
+- Each packet carries a **piece** of the data being sent, such as part of a user's request, part of a web page, or part of a file.
+- Example: when someone types your website's URL and presses Enter, the inbound traffic reaching your EC2 instance is data packets carrying that request.
+- NACLs inspect these packets as they **enter and exit subnets**, so only authorized data gets through.
+
+### Default NACL rules
+| Rule # | Type | Source / Destination | Allow / Deny |
+|---|---|---|---|
+| **100** (Inbound) | All traffic | `0.0.0.0/0` | ✅ Allow |
+| **\*** (Inbound) | All traffic | `0.0.0.0/0` | ❌ Deny |
+| **100** (Outbound) | All traffic | `0.0.0.0/0` | ✅ Allow |
+| **\*** (Outbound) | All traffic | `0.0.0.0/0` | ❌ Deny |
+
+- **Rule 100** allows all traffic in and out of the subnet.
+- The **`*` rule** is a **catch-all** for anything that didn't match an earlier rule. In the default NACL, Rule 100 already allows everything, so `*` never actually applies.
 
 ### Default vs custom NACL ⚠️ (the part that surprised me)
 | NACL type | Inbound | Outbound |
@@ -150,15 +241,17 @@ This lets anyone on the internet visit a web server in the subnet.
 | **Default** (made by AWS) | ✅ Allow all | ✅ Allow all |
 | **Custom** (made by you) | ❌ Deny all | ❌ Deny all |
 
-A new custom NACL blocks **everything** until you add allow rules.
+A new custom NACL has **only** the `*` deny rule, so it blocks **everything** until you add allow rules.
 
 ---
 
-## 4. Security group vs network ACL
+## 10. Security groups vs network ACLs
 
 | | Security Group | Network ACL |
 |---|---|---|
-| Works at | Resource level (EC2) | Subnet level |
+| Analogy | Guard at each building's entrance | Traffic cops at the neighborhood's entry points |
+| Works at | **Resource** level (EC2) | **Subnet** level |
+| Control | **Granular**: ports and protocols per resource | **Broad**: rules for the whole subnet (e.g. block an IP range, deny certain ports) |
 | State | **Stateful** | **Stateless** |
 | Rule types | Allow only | Allow + Deny |
 | Rule order | All rules evaluated | Numbered, lowest first, first match wins |
@@ -167,12 +260,33 @@ A new custom NACL blocks **everything** until you add allow rules.
 
 **Memory trick:** **S**ecurity **G**roup = **S**tateful (it remembers the conversation). **NACL** = **N**o memory (stateless).
 
+### Why use both? 🛡️🛡️
+It's a security best practice called **layered security**:
+- **NACLs** set **broad** restrictions at the subnet level.
+- **Security groups** set **specific** limits at the resource level.
+- Traffic has to pass **both checks**, which reduces the chance of unwanted access.
+
 ---
 
-## 5. Inbound vs outbound
+## 11. The big picture
 
-- **Inbound** = traffic coming **in** to your resource (e.g. a visitor loading your website)
-- **Outbound** = traffic going **out** from your resource (e.g. your server downloading updates)
+```
+Internet
+   │
+Internet Gateway (IGW)          ← door between the VPC and the internet
+   │
+Route Table                     ← GPS: "where does this traffic go?"
+   │
+Network ACL (subnet level)      ← traffic cops at the subnet border (stateless)
+   │
+Subnet
+   │
+Security Group (resource level) ← guard at each resource's door (stateful)
+   │
+EC2 instance / resource
+```
+
+Traffic from the internet passes through **every** layer. If any one of them blocks it, the traffic doesn't get through.
 
 ---
 
@@ -182,16 +296,28 @@ A new custom NACL blocks **everything** until you add allow rules.
 2. Which is bigger: `/16` or `/24`? <br>→ `/16` (smaller number = bigger block)
 3. How many IP addresses are in a `/24`? A `/16`? <br>→ 256 / 65,536
 4. What's the IP range of `10.0.0.0/16`? <br>→ `10.0.0.0` – `10.0.255.255`
-5. What route makes a subnet public? <br>→ `0.0.0.0/0 → Internet Gateway`
-6. Is a security group stateful or stateless? <br>→ Stateful
-7. Is a NACL stateful or stateless? <br>→ Stateless
-8. Which one can have Deny rules? <br>→ NACL only
-9. What does a brand-new custom NACL allow? <br>→ Nothing. It denies all inbound and outbound.
-10. What does the default NACL allow? <br>→ Everything
-11. A new security group's default inbound/outbound? <br>→ Inbound: deny all · Outbound: allow all
-12. What's the local route for? <br>→ Lets resources inside the VPC talk to each other
-13. In what order are NACL rules evaluated? <br>→ By rule number, lowest first. The first match wins.
-14. Port for HTTP? HTTPS? SSH? <br>→ 80 / 443 / 22
+5. What does "auto-assign public IPv4 address" do? <br>→ Gives every EC2 instance launched in the subnet a public IP automatically
+6. What does attaching an internet gateway do? <br>→ Lets resources in the VPC access the internet, and makes instances with public IPs reachable
+7. What route makes a subnet public? <br>→ `0.0.0.0/0 → Internet Gateway`
+8. In a route table, what's the difference between destination and target? <br>→ Destination = where the traffic wants to go. Target = the path it takes to get there.
+9. What does the target `local` mean? <br>→ The traffic stays inside the VPC
+10. What does `0.0.0.0/0` mean? <br>→ All IPv4 addresses (the default route)
+11. If traffic matches both `10.0.0.0/16` and `0.0.0.0/0`, which route wins? <br>→ `10.0.0.0/16`, because the most specific route wins
+12. What do security groups attach to? <br>→ Individual resources, not VPCs or subnets
+13. What happens if you launch a resource without choosing a security group? <br>→ It uses the VPC's default security group
+14. Is a security group stateful or stateless? <br>→ Stateful
+15. Is a NACL stateful or stateless? <br>→ Stateless
+16. Which one can have Deny rules? <br>→ NACL only
+17. A new security group's default inbound/outbound? <br>→ Inbound: deny all · Outbound: allow all
+18. Why did I only need an inbound rule on my security group? <br>→ Security groups allow all outbound traffic by default
+19. Give an example of inbound and outbound traffic. <br>→ Inbound: a visitor loading your site. Outbound: your app sending an email notification.
+20. What is a data packet? <br>→ A small piece of the data being sent across a network
+21. In the default NACL, what do Rule 100 and the `*` rule do? <br>→ Rule 100 allows all traffic. `*` is a catch-all deny for anything that didn't match an earlier rule.
+22. What does a brand-new custom NACL allow? <br>→ Nothing. It denies all inbound and outbound.
+23. In what order are NACL rules evaluated? <br>→ By rule number, lowest first. The first match wins.
+24. Why use both NACLs and security groups? <br>→ Layered security: broad rules at the subnet level plus specific rules at the resource level
+25. Which protocol is used for: web pages? Email? Big file transfers? Secure server access? <br>→ HTTP / SMTP / FTP / SSH
+26. Ports for FTP, SSH, SMTP, HTTP, HTTPS? <br>→ 21 / 22 / 25 / 80 / 443
 
 ---
 
