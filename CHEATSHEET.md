@@ -14,7 +14,7 @@ Full write-up: [README.md](README.md)
 8. [Inbound vs outbound rules](#8-inbound-vs-outbound-rules)
 9. [Network ACLs](#9-network-acls)
 10. [Security groups vs network ACLs](#10-security-groups-vs-network-acls)
-11. [The big picture: a request's journey](#11-the-big-picture-a-requests-journey-️)
+11. [The big picture: a request's journey](#11-the-big-picture-a-requests-journey)
 12. [Quick self-quiz](#quick-self-quiz)
 
 ---
@@ -268,7 +268,7 @@ It's a security best practice called **layered security**:
 
 ---
 
-## 11. The big picture: a request's journey 🗺️
+## 11. The big picture: a request's journey
 
 What happens when someone visits a website hosted on my EC2 instance:
 
