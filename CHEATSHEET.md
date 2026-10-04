@@ -5,6 +5,26 @@ Full write-up: [README.md](README.md)
 
 ---
 
+## 0. What is a VPC?
+
+- AWS puts every resource you create into a **Region**. You can see your current Region in the **top-right corner** of the AWS Console.
+  - Exception: **global resources** like IAM users and roles don't belong to a Region.
+- A **VPC (Virtual Private Cloud)** is your own private, isolated network inside a Region.
+
+### The city analogy 🏙️
+| AWS | Analogy |
+|---|---|
+| **Region** | A country |
+| **VPC** | Your own city inside that country |
+| **Subnets** | Neighborhoods in your city |
+| **Route tables / security** | Traffic rules and security measures |
+| **EC2 instances, S3 buckets, etc.** | The buildings and things in your city |
+| **Other AWS accounts' VPCs** | Other cities, fully isolated from yours |
+
+**Key idea:** your VPC is isolated from everyone else's, so you have full privacy and control over its layout and rules.
+
+---
+
 ## The big picture
 
 ```
@@ -126,6 +146,8 @@ A new custom NACL blocks **everything** until you add allow rules.
 ---
 
 ## Quick self-quiz
+
+0. Which AWS resources don't belong to a Region? <br>→ Global resources like IAM users and roles
 
 1. What route makes a subnet public? <br>→ `0.0.0.0/0 → Internet Gateway`
 2. Is a security group stateful or stateless? <br>→ Stateful
