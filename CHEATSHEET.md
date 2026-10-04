@@ -182,7 +182,6 @@ A new custom NACL blocks **everything** until you add allow rules.
 2. Which is bigger: `/16` or `/24`? <br>→ `/16` (smaller number = bigger block)
 3. How many IP addresses are in a `/24`? A `/16`? <br>→ 256 / 65,536
 4. What's the IP range of `10.0.0.0/16`? <br>→ `10.0.0.0` – `10.0.255.255`
-
 5. What route makes a subnet public? <br>→ `0.0.0.0/0 → Internet Gateway`
 6. Is a security group stateful or stateless? <br>→ Stateful
 7. Is a NACL stateful or stateless? <br>→ Stateless
