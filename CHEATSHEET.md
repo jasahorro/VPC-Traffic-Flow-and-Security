@@ -25,6 +25,37 @@ Full write-up: [README.md](README.md)
 
 ---
 
+## 0.5. What is an IPv4 CIDR?
+
+- **IP address** = a street address for a resource in your city 🏠
+- **CIDR block** = a whole block of IP addresses, like marking out a zone in your city 🗺️
+
+### How to read a CIDR block
+An IPv4 address has **32 bits** (4 parts × 8 bits each). The number after the slash (`/`) is how many bits are **fixed**. The remaining bits can **vary**, and those are the addresses you get to use.
+
+> **The smaller the number after the slash, the BIGGER the block.**
+
+| CIDR block | Fixed bits | Bits that vary | IP address range | # of addresses |
+|---|---|---|---|---|
+| `10.0.0.0/8` | 8 (`10`) | 24 | `10.0.0.0` – `10.255.255.255` | 2²⁴ = **16,777,216** |
+| `10.0.0.0/16` | 16 (`10.0`) | 16 | `10.0.0.0` – `10.0.255.255` | 2¹⁶ = **65,536** |
+| `10.0.0.0/24` | 24 (`10.0.0`) | 8 | `10.0.0.0` – `10.0.0.255` | 2⁸ = **256** |
+
+### Quick math 🧮
+```
+number of addresses = 2 ^ (32 − number after the slash)
+```
+Example: `/24` → 2^(32 − 24) = 2^8 = 256
+
+**Shortcut:** each `/8` covers one part of the address.
+- `/8` → only the 1st part is fixed (`10.x.x.x`)
+- `/16` → the first 2 parts are fixed (`10.0.x.x`)
+- `/24` → the first 3 parts are fixed (`10.0.0.x`)
+
+**In my projects:** VPC = `10.0.0.0/16` (the whole city), public subnet = `10.0.0.0/24` (one neighborhood inside it).
+
+---
+
 ## The big picture
 
 ```
@@ -147,18 +178,21 @@ A new custom NACL blocks **everything** until you add allow rules.
 
 ## Quick self-quiz
 
-0. Which AWS resources don't belong to a Region? <br>→ Global resources like IAM users and roles
+1. Which AWS resources don't belong to a Region? <br>→ Global resources like IAM users and roles
+2. Which is bigger: `/16` or `/24`? <br>→ `/16` (smaller number = bigger block)
+3. How many IP addresses are in a `/24`? A `/16`? <br>→ 256 / 65,536
+4. What's the IP range of `10.0.0.0/16`? <br>→ `10.0.0.0` – `10.0.255.255`
 
-1. What route makes a subnet public? <br>→ `0.0.0.0/0 → Internet Gateway`
-2. Is a security group stateful or stateless? <br>→ Stateful
-3. Is a NACL stateful or stateless? <br>→ Stateless
-4. Which one can have Deny rules? <br>→ NACL only
-5. What does a brand-new custom NACL allow? <br>→ Nothing. It denies all inbound and outbound.
-6. What does the default NACL allow? <br>→ Everything
-7. A new security group's default inbound/outbound? <br>→ Inbound: deny all · Outbound: allow all
-8. What's the local route for? <br>→ Lets resources inside the VPC talk to each other
-9. In what order are NACL rules evaluated? <br>→ By rule number, lowest first. The first match wins.
-10. Port for HTTP? HTTPS? SSH? <br>→ 80 / 443 / 22
+5. What route makes a subnet public? <br>→ `0.0.0.0/0 → Internet Gateway`
+6. Is a security group stateful or stateless? <br>→ Stateful
+7. Is a NACL stateful or stateless? <br>→ Stateless
+8. Which one can have Deny rules? <br>→ NACL only
+9. What does a brand-new custom NACL allow? <br>→ Nothing. It denies all inbound and outbound.
+10. What does the default NACL allow? <br>→ Everything
+11. A new security group's default inbound/outbound? <br>→ Inbound: deny all · Outbound: allow all
+12. What's the local route for? <br>→ Lets resources inside the VPC talk to each other
+13. In what order are NACL rules evaluated? <br>→ By rule number, lowest first. The first match wins.
+14. Port for HTTP? HTTPS? SSH? <br>→ 80 / 443 / 22
 
 ---
 
