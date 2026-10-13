@@ -1,5 +1,7 @@
 # VPC Traffic Flow & Security: Cheat Sheet
 
+> 📚 **Part 2 of 9** in my [AWS VPC Series](https://github.com/jasahorro/AWS-VPC-Series) · ← Previous: [Build a Virtual Private Cloud](https://github.com/jasahorro/Build-A-Virtual-Private-Cloud/blob/main/CHEATSHEET.md) · Next: [Creating a Private Subnet](https://github.com/jasahorro/Creating-a-Private-Subnet/blob/main/CHEATSHEET.md) →
+
 Quick review notes for the NextWork **VPC Traffic Flow and Security** project.
 Full write-up: [README.md](README.md)
 
